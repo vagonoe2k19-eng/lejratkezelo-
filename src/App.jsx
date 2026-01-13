@@ -12,22 +12,28 @@ function App() {
         return saved ? JSON.parse(saved) : null;
     });
 
-    const [products, setProducts] = useState(() => {
-        const key = currentUser ? `products_${currentUser.email}` : 'products_guest';
-        const saved = localStorage.getItem(key);
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [products, setProducts] = useState([]);
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Load products when user changes (login/logout)
+    useEffect(() => {
+        if (currentUser) {
+            const key = `products_${currentUser.email}`;
+            const saved = localStorage.getItem(key);
+            setProducts(saved ? JSON.parse(saved) : []);
+        } else {
+            setProducts([]);
+        }
+    }, [currentUser]);
+
+    // Save products whenever they change
     useEffect(() => {
         if (currentUser) {
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             localStorage.setItem(`products_${currentUser.email}`, JSON.stringify(products));
-        } else {
-            localStorage.removeItem('currentUser');
         }
     }, [products, currentUser]);
 
@@ -43,7 +49,7 @@ function App() {
 
     const logout = () => {
         setCurrentUser(null);
-        setProducts([]);
+        // Products will be cleared by the useEffect above
     };
 
     const filteredProducts = products.filter(p =>
