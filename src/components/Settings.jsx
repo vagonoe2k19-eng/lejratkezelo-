@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { Sun, Moon, Palette, RotateCcw } from 'lucide-react';
+import { Sun, Moon, Palette, RotateCcw, LogOut } from 'lucide-react';
 
-const Settings = () => {
+const Settings = ({ onLogout }) => {
     const { theme, isDark, toggleTheme, setCustomTheme, resetTheme } = useTheme();
     const [showColorPicker, setShowColorPicker] = React.useState(false);
     const [customColors, setCustomColors] = React.useState({
@@ -88,6 +88,18 @@ const Settings = () => {
                         </button>
                     </div>
                 )}
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>Fiók</h3>
+                <button
+                    className="btn btn-secondary"
+                    onClick={onLogout}
+                    style={{ width: '100%', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                >
+                    <LogOut size={20} />
+                    Kijelentkezés
+                </button>
             </div>
 
             <div className="glass-panel" style={{ padding: '1.5rem' }}>
