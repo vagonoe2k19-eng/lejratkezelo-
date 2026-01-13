@@ -1,24 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Camera, Trash2, AlertTriangle, CheckCircle, Clock, LogOut } from 'lucide-react';
+import { Plus, Camera } from 'lucide-react';
+import { useTheme } from './contexts/ThemeContext';
 import Dashboard from './components/Dashboard';
 import ProductCard from './components/ProductCard';
 import AddProductModal from './components/AddProductModal';
 import BarcodeScanner from './components/BarcodeScanner';
 import Auth from './components/Auth';
+import BottomNav from './components/BottomNav';
+import TodayView from './components/TodayView';
+import CalendarView from './components/CalendarView';
+import Settings from './components/Settings';
 
 function App() {
+    const { theme } = useTheme();
+
     const [currentUser, setCurrentUser] = useState(() => {
         const saved = localStorage.getItem('currentUser');
         return saved ? JSON.parse(saved) : null;
     });
 
     const [products, setProducts] = useState([]);
-
     const [showAddModal, setShowAddModal] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [activeView, setActiveView] = useState('home');
 
-    // Load products when user changes (login/logout)
+    // Apply theme colors to CSS variables
+    useEffect(() => {
+        if (theme) {
+            document.documentElement.style.setProperty('--primary', theme.primary);
+            document.documentElement.style.setProperty('--secondary', theme.secondary);
+            document.documentElement.style.setProperty('--accent', theme.accent);
+            document.documentElement.style.setProperty('--bg', theme.background);
+            document.documentElement.style.setProperty('--surface', theme.surface);
+            document.documentElement.style.setProperty('--text', theme.text);
+            document.documentElement.style.setProperty('--text-muted', theme.textMuted);
+        }
+    }, [theme]);
+
+    // Load products when user changes
     useEffect(() => {
         if (currentUser) {
             const key = `products_${currentUser.email}`;
@@ -49,79 +68,60 @@ function App() {
 
     const logout = () => {
         setCurrentUser(null);
-        // Products will be cleared by the useEffect above
     };
-
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
 
     if (!currentUser) {
         return <Auth onLogin={setCurrentUser} />;
     }
 
-    return (
-        <div className="container">
-            <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem' }}>Lejáratkezelő</h1>
-                    <p style={{ color: 'var(--text-muted)' }}>Üdv, {currentUser.name}! Kövesd nyomon termékeid szavatosságát.</p>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn-primary" onClick={() => setShowScanner(true)}>
-                        <Camera size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                        Beolvasás
-                    </button>
-                    <button className="btn-primary" onClick={() => setShowAddModal(true)}>
-                        <Plus size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                        Hozzáadás
-                    </button>
-                    <button
-                        style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}
-                        onClick={logout}
-                        title="Kijelentkezés"
-                    >
-                        <LogOut size={20} />
-                    </button>
-                </div>
-            </header>
+    const renderView = () => {
+        switch (activeView) {
+            case 'home':
+                return (
+                    <div className="container" style={{ paddingTop: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <div>
+                                <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '0.25rem' }}>Lejáratkezelő</h1>
+                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Üdv, {currentUser.name}!</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <button className="btn btn-secondary btn-icon" onClick={() => setShowScanner(true)}>
+                                    <Camera size={20} />
+                                </button>
+                                <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+                                    <Plus size={20} style={{ marginRight: '4px' }} />
+                                    Új
+                                </button>
+                            </div>
+                        </div>
 
-            <Dashboard products={products} />
+                        <Dashboard products={products} />
 
-            <div style={{ position: 'relative', marginBottom: '2rem' }}>
-                <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={20} />
-                <input
-                    type="text"
-                    placeholder="Keresés termékek között..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{
-                        width: '100%',
-                        padding: '12px 12px 12px 45px',
-                        background: 'var(--glass-bg)',
-                        border: '1px solid var(--glass-border)',
-                        borderRadius: '12px',
-                        color: 'white',
-                        outline: 'none'
-                    }}
-                />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                {filteredProducts.map(product => (
-                    <ProductCard key={product.id} product={product} onDelete={deleteProduct} />
-                ))}
-                {filteredProducts.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-                        <Clock size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
-                        <p>Nincs találat. Adj hozzá egy új terméket!</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
+                            {products.map(product => (
+                                <ProductCard key={product.id} product={product} onDelete={deleteProduct} />
+                            ))}
+                        </div>
                     </div>
-                )}
-            </div>
+                );
+            case 'today':
+                return <TodayView products={products} />;
+            case 'calendar':
+                return <CalendarView products={products} />;
+            case 'settings':
+                return <Settings />;
+            default:
+                return null;
+        }
+    };
 
+    return (
+        <>
+            {renderView()}
+            <BottomNav activeView={activeView} setActiveView={setActiveView} />
             {showAddModal && <AddProductModal onClose={() => setShowAddModal(false)} onAdd={addProduct} />}
             {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onScan={addProduct} />}
-        </div>
+        </>
     );
 }
 

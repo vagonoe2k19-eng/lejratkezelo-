@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
-import { Package, Calendar, Tag, Plus, Trash2, X } from 'lucide-react';
+import { Package, Calendar, Tag, Plus, Trash2, X, MapPin } from 'lucide-react';
+import { useCategories } from '../contexts/CategoriesContext';
 
 const AddProductModal = ({ onClose, onAdd }) => {
+    const { categories } = useCategories();
+
     const [formData, setFormData] = useState({
         name: '',
-        category: 'Élelmiszer',
+        category: categories[0]?.name || 'Élelmiszer',
         batches: [{ expiryDate: '', quantity: 1, id: Date.now() }],
-        barcode: ''
+        barcode: '',
+        location: ''
     });
 
     const addBatch = () => {
@@ -38,8 +42,6 @@ const AddProductModal = ({ onClose, onAdd }) => {
             onAdd(formData);
         }
     };
-
-    const categories = ['Élelmiszer', 'Gyógyszer', 'Kozmetikum', 'Tisztítószer', 'Egyéb'];
 
     return (
         <div style={{
@@ -81,9 +83,23 @@ const AddProductModal = ({ onClose, onAdd }) => {
                                 onChange={e => setFormData({ ...formData, category: e.target.value })}
                                 style={{ appearance: 'none' }}
                             >
-                                {categories.map(cat => <option key={cat} value={cat} style={{ background: '#1e293b' }}>{cat}</option>)}
+                                {categories.map(cat => <option key={cat.id} value={cat.name} style={{ background: '#1e293b' }}>{cat.icon} {cat.name}</option>)}
                             </select>
                         </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            <MapPin size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                            Polc/Hely
+                        </label>
+                        <input
+                            className="input-style"
+                            type="text"
+                            placeholder="Pl: A2, Hűtő, Raktár"
+                            value={formData.location}
+                            onChange={e => setFormData({ ...formData, location: e.target.value })}
+                        />
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
