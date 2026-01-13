@@ -109,7 +109,7 @@ function App() {
             case 'calendar':
                 return <CalendarView products={products} />;
             case 'settings':
-                return <Settings />;
+                return <Settings onLogout={logout} />;
             default:
                 return null;
         }
