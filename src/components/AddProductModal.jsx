@@ -130,7 +130,7 @@ const AddProductModal = ({ onClose, onAdd }) => {
                                         type="number"
                                         min="1"
                                         value={batch.quantity}
-                                        onChange={e => updateBatch(batch.id, 'quantity', parseInt(e.target.value) || 1)}
+                                        onChange={e => updateBatch(batch.id, 'quantity', e.target.value === '' ? '' : parseInt(e.target.value))}
                                     />
                                 </div>
                                 <button
