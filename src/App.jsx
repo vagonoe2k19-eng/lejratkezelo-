@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Camera } from 'lucide-react';
 import { useTheme } from './contexts/ThemeContext';
+import { supabase } from './lib/supabase';
 import Dashboard from './components/Dashboard';
 import ProductCard from './components/ProductCard';
 import AddProductModal from './components/AddProductModal';
@@ -14,15 +15,52 @@ import Settings from './components/Settings';
 function App() {
     const { theme } = useTheme();
 
-    const [currentUser, setCurrentUser] = useState(() => {
-        const saved = localStorage.getItem('currentUser');
-        return saved ? JSON.parse(saved) : null;
-    });
-
+    const [currentUser, setCurrentUser] = useState(null);
     const [products, setProducts] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     const [activeView, setActiveView] = useState('home');
+    const [loading, setLoading] = useState(true);
+
+    // Check for existing session on mount
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                fetchUserProfile(session.user.id);
+            } else {
+                setLoading(false);
+            }
+        });
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                fetchUserProfile(session.user.id);
+            } else {
+                setCurrentUser(null);
+                setProducts([]);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const fetchUserProfile = async (userId) => {
+        const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (profile) {
+            setCurrentUser({
+                id: profile.id,
+                email: profile.email,
+                name: profile.name,
+            });
+        }
+        setLoading(false);
+    };
 
     // Apply theme colors to CSS variables
     useEffect(() => {
@@ -40,35 +78,76 @@ function App() {
     // Load products when user changes
     useEffect(() => {
         if (currentUser) {
-            const key = `products_${currentUser.email}`;
-            const saved = localStorage.getItem(key);
-            setProducts(saved ? JSON.parse(saved) : []);
+            fetchProducts();
         } else {
             setProducts([]);
         }
     }, [currentUser]);
 
-    // Save products whenever they change
-    useEffect(() => {
-        if (currentUser) {
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            localStorage.setItem(`products_${currentUser.email}`, JSON.stringify(products));
+    const fetchProducts = async () => {
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false });
+
+        if (!error && data) {
+            setProducts(data);
         }
-    }, [products, currentUser]);
-
-    const addProduct = (product) => {
-        setProducts([...products, { ...product, id: Date.now() }]);
-        setShowAddModal(false);
-        setShowScanner(false);
     };
 
-    const deleteProduct = (id) => {
-        setProducts(products.filter(p => p.id !== id));
+    const addProduct = async (product) => {
+        const { data, error } = await supabase
+            .from('products')
+            .insert([
+                {
+                    user_id: currentUser.id,
+                    name: product.name,
+                    category: product.category,
+                    barcode: product.barcode || null,
+                    location: product.location || null,
+                    batches: product.batches,
+                },
+            ])
+            .select();
+
+        if (!error && data) {
+            setProducts([data[0], ...products]);
+            setShowAddModal(false);
+            setShowScanner(false);
+        }
     };
 
-    const logout = () => {
+    const deleteProduct = async (id) => {
+        const { error } = await supabase
+            .from('products')
+            .delete()
+            .eq('id', id);
+
+        if (!error) {
+            setProducts(products.filter(p => p.id !== id));
+        }
+    };
+
+    const logout = async () => {
+        await supabase.auth.signOut();
         setCurrentUser(null);
+        setProducts([]);
     };
+
+    if (loading) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--bg)'
+            }}>
+                <div className="spinner" />
+            </div>
+        );
+    }
 
     if (!currentUser) {
         return <Auth onLogin={setCurrentUser} />;

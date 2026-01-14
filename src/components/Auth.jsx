@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, Mail, ArrowRight } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const Auth = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
@@ -9,33 +10,69 @@ const Auth = ({ onLogin }) => {
         name: ''
     });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setLoading(true);
 
-        if (isLogin) {
-            // Simple mock login
-            const users = JSON.parse(localStorage.getItem('users') || '[]');
-            const user = users.find(u => u.email === formData.email && u.password === formData.password);
+        try {
+            if (isLogin) {
+                // Login with Supabase
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: formData.email,
+                    password: formData.password,
+                });
 
-            if (user) {
-                onLogin(user);
+                if (error) throw error;
+
+                // Fetch user profile
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('*')
+                    .eq('id', data.user.id)
+                    .single();
+
+                onLogin({
+                    id: data.user.id,
+                    email: data.user.email,
+                    name: profile?.name || data.user.email,
+                });
             } else {
-                setError('Helytelen e-mail vagy jelszó!');
-            }
-        } else {
-            // Simple mock registration
-            const users = JSON.parse(localStorage.getItem('users') || '[]');
-            if (users.find(u => u.email === formData.email)) {
-                setError('Ez az e-mail cím már foglalt!');
-                return;
-            }
+                // Register with Supabase
+                const { data, error } = await supabase.auth.signUp({
+                    email: formData.email,
+                    password: formData.password,
+                });
 
-            const newUser = { ...formData };
-            users.push(newUser);
-            localStorage.setItem('users', JSON.stringify(users));
-            onLogin(newUser);
+                if (error) throw error;
+
+                if (data.user) {
+                    // Create user profile
+                    const { error: profileError } = await supabase
+                        .from('user_profiles')
+                        .insert([
+                            {
+                                id: data.user.id,
+                                email: formData.email,
+                                name: formData.name,
+                            },
+                        ]);
+
+                    if (profileError) throw profileError;
+
+                    onLogin({
+                        id: data.user.id,
+                        email: formData.email,
+                        name: formData.name,
+                    });
+                }
+            }
+        } catch (error) {
+            setError(error.message || 'Hiba történt!');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -92,18 +129,29 @@ const Auth = ({ onLogin }) => {
                             <input
                                 type="password"
                                 required
+                                minLength={6}
                                 value={formData.password}
                                 onChange={e => setFormData({ ...formData, password: e.target.value })}
                                 style={{ width: '100%', padding: '12px 12px 12px 40px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '10px', color: 'white', outline: 'none' }}
                             />
                         </div>
+                        {!isLogin && (
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                                Minimum 6 karakter
+                            </p>
+                        )}
                     </div>
 
                     {error && <p style={{ color: 'var(--status-danger)', marginBottom: '1rem', fontSize: '0.9rem', textAlign: 'center' }}>{error}</p>}
 
-                    <button type="submit" className="btn-primary" style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                        {isLogin ? 'Bejelentkezés' : 'Regisztráció'}
-                        <ArrowRight size={18} />
+                    <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={loading}
+                        style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', opacity: loading ? 0.6 : 1 }}
+                    >
+                        {loading ? 'Betöltés...' : (isLogin ? 'Bejelentkezés' : 'Regisztráció')}
+                        {!loading && <ArrowRight size={18} />}
                     </button>
                 </form>
 

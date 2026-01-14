@@ -1,45 +1,127 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 const CategoriesContext = createContext();
 
 export const useCategories = () => useContext(CategoriesContext);
 
 const defaultCategories = [
-    { id: 1, name: 'Tejtermék', icon: '🥛', color: '#10b981' },
-    { id: 2, name: 'Pékáru', icon: '🍞', color: '#f59e0b' },
-    { id: 3, name: 'Hús & Hal', icon: '🥩', color: '#ef4444' },
-    { id: 4, name: 'Zöldség & Gyümölcs', icon: '🥬', color: '#22c55e' },
-    { id: 5, name: 'Fagyasztott', icon: '❄️', color: '#06b6d4' },
-    { id: 6, name: 'Konzerv', icon: '🥫', color: '#f97316' },
-    { id: 7, name: 'Üdítő & Ital', icon: '🥤', color: '#3b82f6' },
-    { id: 8, name: 'Édességek', icon: '🍫', color: '#ec4899' },
-    { id: 9, name: 'Gyógyszer', icon: '💊', color: '#ef4444' },
-    { id: 10, name: 'Kozmetikum', icon: '💄', color: '#a855f7' },
-    { id: 11, name: 'Tisztítószer', icon: '🧼', color: '#06b6d4' },
-    { id: 12, name: 'Háztartási', icon: '🏠', color: '#64748b' },
-    { id: 13, name: 'Egyéb', icon: '📦', color: '#8b5cf6' },
+    { name: 'Tejtermék', icon: '🥛', color: '#10b981' },
+    { name: 'Pékáru', icon: '🍞', color: '#f59e0b' },
+    { name: 'Hús & Hal', icon: '🥩', color: '#ef4444' },
+    { name: 'Zöldség & Gyümölcs', icon: '🥬', color: '#22c55e' },
+    { name: 'Fagyasztott', icon: '❄️', color: '#06b6d4' },
+    { name: 'Konzerv', icon: '🥫', color: '#f97316' },
+    { name: 'Üdítő & Ital', icon: '🥤', color: '#3b82f6' },
+    { name: 'Édességek', icon: '🍫', color: '#ec4899' },
+    { name: 'Gyógyszer', icon: '💊', color: '#ef4444' },
+    { name: 'Kozmetikum', icon: '💄', color: '#a855f7' },
+    { name: 'Tisztítószer', icon: '🧼', color: '#06b6d4' },
+    { name: 'Háztartási', icon: '🏠', color: '#64748b' },
+    { name: 'Egyéb', icon: '📦', color: '#8b5cf6' },
 ];
 
 export const CategoriesProvider = ({ children }) => {
-    const [categories, setCategories] = useState(() => {
-        const saved = localStorage.getItem('categories');
-        return saved ? JSON.parse(saved) : defaultCategories;
-    });
+    const [categories, setCategories] = useState(defaultCategories);
+    const [userId, setUserId] = useState(null);
 
+    // Listen for auth changes
     useEffect(() => {
-        localStorage.setItem('categories', JSON.stringify(categories));
-    }, [categories]);
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                setUserId(session.user.id);
+            }
+        });
 
-    const addCategory = (category) => {
-        setCategories([...categories, { ...category, id: Date.now() }]);
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                setUserId(session.user.id);
+            } else {
+                setUserId(null);
+                setCategories(defaultCategories);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    // Load categories when user changes
+    useEffect(() => {
+        if (userId) {
+            fetchCategories();
+        }
+    }, [userId]);
+
+    const fetchCategories = async () => {
+        const { data, error } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('user_id', userId);
+
+        if (!error && data && data.length > 0) {
+            setCategories(data);
+        } else if (!error && data && data.length === 0) {
+            // Initialize with default categories for new users
+            await initializeDefaultCategories();
+        }
     };
 
-    const updateCategory = (id, updates) => {
-        setCategories(categories.map(c => c.id === id ? { ...c, ...updates } : c));
+    const initializeDefaultCategories = async () => {
+        const categoriesToInsert = defaultCategories.map(cat => ({
+            user_id: userId,
+            ...cat,
+        }));
+
+        const { data, error } = await supabase
+            .from('categories')
+            .insert(categoriesToInsert)
+            .select();
+
+        if (!error && data) {
+            setCategories(data);
+        }
     };
 
-    const deleteCategory = (id) => {
-        if (categories.length > 1) {
+    const addCategory = async (category) => {
+        if (!userId) return;
+
+        const { data, error } = await supabase
+            .from('categories')
+            .insert([
+                {
+                    user_id: userId,
+                    ...category,
+                },
+            ])
+            .select();
+
+        if (!error && data) {
+            setCategories([...categories, data[0]]);
+        }
+    };
+
+    const updateCategory = async (id, updates) => {
+        if (!userId) return;
+
+        const { error } = await supabase
+            .from('categories')
+            .update(updates)
+            .eq('id', id);
+
+        if (!error) {
+            setCategories(categories.map(c => c.id === id ? { ...c, ...updates } : c));
+        }
+    };
+
+    const deleteCategory = async (id) => {
+        if (!userId || categories.length <= 1) return;
+
+        const { error } = await supabase
+            .from('categories')
+            .delete()
+            .eq('id', id);
+
+        if (!error) {
             setCategories(categories.filter(c => c.id !== id));
         }
     };
